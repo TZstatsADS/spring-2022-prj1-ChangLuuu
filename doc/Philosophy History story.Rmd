@@ -1,0 +1,489 @@
+---
+title: "Do Philosophy works have emotion and how are they developing"
+author: "Chang Lu"
+output: html_document
+---
+
+Philosophy, as a scientific discipline should be objective, rational, and should not involve strong emotions. My project seeks to find out whether the sentiment in different schools and philosophers are neutral or not, and whether the sentiment of a specific school becomes neutral over time.
+
+# Step 0: check and install packages that are needed
+
+```{r message=FALSE, warning=FALSE}
+remove(list=ls())
+packages.used=c("sentimentr", "ggplot2", "dplyr","tm", "syuzhet", "RColorBrewer","wordcloud")
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+# load packages
+library("sentimentr")
+library("ggplot2")
+library("dplyr")
+library("tm")
+library("syuzhet")
+library("RColorBrewer")
+library("wordcloud")
+```
+
+Environmental settings.
+
+```{r}
+print(R.version)
+```
+
+# Step 1: Data processing
+
+```{r}
+rawdata <- read.csv("~/Desktop/22spring/GR5243 Applied DS/spring-2022-prj1-ChangLuuu/data/philosophy_data.csv")
+colnames(rawdata)
+unique(rawdata$author)
+unique(rawdata$school)
+```
+
+
+# Sept 2: EDA using Sentiment Analysis
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+s <- Sys.time()
+#rawdata <- rawdata[rawdata$original_publication_date>1500,]
+data <- rawdata[,c("title","author","school","original_publication_date",
+                   "sentence_length","sentence_lowered")]
+sentscore <- sentiment(data$sentence_lowered)
+sentscore <- sentscore[sentscore$sentence_id==1,"sentiment"]
+data$sentscore <- sentscore[[1]]
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+scoreschooldf <- data.frame(school=unique(data$school))
+scoreschool <- c()
+for(i in 1:length(unique(data$school))){
+  scoreschool[i] <- mean(data[data$school==unique(data$school)[i],"sentscore"])
+}
+scoreschooldf$score <- scoreschool
+ggplot(data=scoreschooldf,aes(x=school,y=score,fill=score)) +
+  geom_bar(stat="identity") +
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5), 
+        plot.title = element_text(hjust = 0.5)) +
+  labs(title = "sentiment score of school level")
+```
+
+From the histogram above we can see that most schools' sentiment scores are slightly positive, with certain school's sentiment score approximately equal to 0, meaning this school (continental) probably has neutral sentiment.
+
+```{r echo=FALSE}
+scoreauthordf <- data.frame(author=unique(data$author))
+scoreauthor <- c()
+for(i in 1:length(unique(data$author))){
+  scoreauthor[i] <- mean(data[data$author==unique(data$author)[i],"sentscore"])
+}
+scoreauthordf$score <- scoreauthor
+ggplot(data=scoreauthordf,aes(x=author, y=score, fill=score))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment score of author level")
+```
+
+As for author level, the sentiment scores vary a lot. Some philosophers' sentiment score are relatively greater than others. While certain philosopher' sentiment score less than 0, meaning he has negative sentiment in his work. We can see several philosophers have sentiment score approximately equal to 0.
+
+Next, let's take a look at some extreme samples and some neutral samples both in school level and author level using NRC sentiment analysis.
+
+From school level, german idealism is taken as a relative extreme positive school, and continental is taken as a neutral school.
+
+```{r include=FALSE}
+gerideal <- data[data$school=="german_idealism","sentence_lowered"]
+s <- Sys.time()
+nrcsentgi <- get_nrc_sentiment(gerideal)
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+geridatti <- rep(NA,nrow(nrcsentgi))
+for(i in 1:nrow(nrcsentgi)){
+  if(nrcsentgi[i,"negative"]>nrcsentgi[i,"positive"]){
+    geridatti[i] <- "negative"
+  }
+  if(nrcsentgi[i,"negative"]<nrcsentgi[i,"positive"]){
+    geridatti[i] <- "positive"
+  }
+  if(nrcsentgi[i,"negative"]==nrcsentgi[i,"positive"]){
+    geridatti[i] <- "neutral"
+  }
+}
+gidf <- data.frame(attitude=c("positive","neutral","negative"),percentage=c(mean(geridatti=="positive"),mean(geridatti=="neutral"),mean(geridatti=="negative")))
+ggplot(data=gidf, aes(x=attitude,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "attitude percentage of German Idealism")
+```
+
+Here using NRC, we can calculate the percentage of positive and negative sentences. Sentences with equal positive and negative words are labeled as neutral.
+
+```{r echo=FALSE}
+percgi <- (colSums(nrcsentgi)/sum(colSums(nrcsentgi[,1:8])))[1:8]
+senti <- names(percgi)
+GIsent <- data.frame(sentiment=senti,percentage=percgi)
+ggplot(data=GIsent, aes(x=sentiment,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment label percentage of German Idealism")
+```
+
+If we take a look at the sentiment labels percentage of this school, we can find out that sentences with label *trust* and *anticipation* take over half.
+
+```{r include=FALSE}
+continental <- data[data$school=="continental","sentence_lowered"]
+s <- Sys.time()
+nrcsentcon <- get_nrc_sentiment(continental)
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+conatti <- rep(NA,nrow(nrcsentcon))
+for(i in 1:nrow(nrcsentcon)){
+  if(nrcsentcon[i,"negative"]>nrcsentcon[i,"positive"]){
+    conatti[i] <- "negative"
+  }
+  if(nrcsentcon[i,"negative"]<nrcsentcon[i,"positive"]){
+    conatti[i] <- "positive"
+  }
+  if(nrcsentcon[i,"negative"]==nrcsentcon[i,"positive"]){
+    conatti[i] <- "neutral"
+  }
+}
+condf <- data.frame(attitude=c("positive","neutral","negative"),percentage=c(mean(conatti=="positive"),mean(conatti=="neutral"),mean(conatti=="negative")))
+ggplot(data=condf, aes(x=attitude,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "attitude percentage of Continental")
+```
+
+As for continental school which represent neutral school, its positive attitude is relatively lower than the former one and shows more percentage of neutral.
+
+```{r echo=FALSE}
+perccon <- (colSums(nrcsentcon)/sum(colSums(nrcsentcon[,1:8])))[1:8]
+senti <- names(perccon)
+Consent <- data.frame(sentiment=senti,percentage=perccon)
+ggplot(data=Consent, aes(x=sentiment,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment label percentage of Continental")
+```
+
+When we look at this school's sentiment label, we can also find out that the labels are distributed relatively even compared with the positive german idealism school, which leads to the same conclusion of the histogram.
+
+
+
+From philosopher level, Husserl is taken as an extreme positive philosopher, Davis is taken as an extreme negative philosopher, and Foucault is taken as an neutral philosopher.
+
+```{r include=FALSE}
+Husserl <- data[data$author=="Husserl","sentence_lowered"]
+s <- Sys.time()
+nrcsentHusserl <- get_nrc_sentiment(Husserl)
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+Husserlatti <- rep(NA,nrow(nrcsentHusserl))
+for(i in 1:nrow(nrcsentHusserl)){
+  if(nrcsentHusserl[i,"negative"]>nrcsentHusserl[i,"positive"]){
+    Husserlatti[i] <- "negative"
+  }
+  if(nrcsentHusserl[i,"negative"]<nrcsentHusserl[i,"positive"]){
+    Husserlatti[i] <- "positive"
+  }
+  if(nrcsentHusserl[i,"negative"]==nrcsentHusserl[i,"positive"]){
+    Husserlatti[i] <- "neutral"
+  }
+}
+Husserldf <- data.frame(attitude=c("positive","neutral","negative"),percentage=c(mean(Husserlatti=="positive"),mean(Husserlatti=="neutral"),mean(Husserlatti=="negative")))
+ggplot(data=Husserldf, aes(x=attitude,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "attitude percentage of Husserl")
+
+```
+
+Using NRC to calculate the percentage of Husserl's attitude, we can see that Husserl's work contains much more positive sentences than negative and neutral ones.
+
+```{r echo=FALSE}
+percH <- (colSums(nrcsentHusserl)/sum(colSums(nrcsentHusserl[,1:8])))[1:8]
+senti <- names(percH)
+Hsent <- data.frame(sentiment=senti,percentage=percH)
+ggplot(data=Hsent, aes(x=sentiment,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment label percentage of Husserl")
+```
+
+If we take a look at the sentiment labels percentage of Husserl's work, we can find out that sentences with label *trust* and *anticipation* takes over half of his work.
+
+```{r include=FALSE}
+Davis <- data[data$author=="Davis","sentence_lowered"]
+s <- Sys.time()
+nrcsentDavis <- get_nrc_sentiment(Davis)
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+Davisatti <- rep(NA,nrow(nrcsentDavis))
+for(i in 1:nrow(nrcsentDavis)){
+  if(nrcsentDavis[i,"negative"]>nrcsentDavis[i,"positive"]){
+    Davisatti[i] <- "negative"
+  }
+  if(nrcsentDavis[i,"negative"]<nrcsentDavis[i,"positive"]){
+    Davisatti[i] <- "positive"
+  }
+  if(nrcsentDavis[i,"negative"]==nrcsentDavis[i,"positive"]){
+    Davisatti[i] <- "neutral"
+  }
+}
+
+Davisdf <- data.frame(attitude=c("positive","neutral","negative"),percentage=c(mean(Davisatti=="positive"),mean(Davisatti=="neutral"),mean(Davisatti=="negative")))
+ggplot(data=Davisdf, aes(x=attitude,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "attitude percentage of Davis")
+```
+
+Davis' work contains nearly three times negative sentences than others, which makes him the representative of negative philosopher.
+
+```{r echo=FALSE}
+percD <- (colSums(nrcsentDavis)/sum(colSums(nrcsentDavis[,1:8])))[1:8]
+senti <- names(percD)
+Dsent <- data.frame(sentiment=senti,percentage=percD)
+ggplot(data=Dsent, aes(x=sentiment,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment label percentage of Davis")
+```
+
+In Davis' work, the percentage of sentences labeled *anger*, *fear* and *sadness* is much more than other philosophers'.
+
+```{r include=FALSE}
+Foucault <- data[data$author=="Foucault","sentence_lowered"]
+s <- Sys.time()
+nrcsentFoucault <- get_nrc_sentiment(Foucault)
+e <- Sys.time()
+e-s
+```
+
+```{r echo=FALSE}
+Foucaultatti <- rep(NA,nrow(nrcsentFoucault))
+for(i in 1:nrow(nrcsentFoucault)){
+  if(nrcsentFoucault[i,"negative"]>nrcsentFoucault[i,"positive"]){
+    Foucaultatti[i] <- "negative"
+  }
+  if(nrcsentFoucault[i,"negative"]<nrcsentFoucault[i,"positive"]){
+    Foucaultatti[i] <- "positive"
+  }
+  if(nrcsentFoucault[i,"negative"]==nrcsentFoucault[i,"positive"]){
+    Foucaultatti[i] <- "neutral"
+  }
+}
+
+Foucaultdf <- data.frame(attitude=c("positive","neutral","negative"),percentage=c(mean(Foucaultatti=="positive"),mean(Foucaultatti=="neutral"),mean(Foucaultatti=="negative")))
+ggplot(data=Foucaultdf, aes(x=attitude,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "attitude percentage of Foucault")
+```
+
+For Foucault, the distribution of his attitude is pretty much the same as in neutral school representative continental school. If we look at the school he belongs to, we can find that actually he is a continental philosopher.
+
+```{r echo=FALSE}
+percF <- (colSums(nrcsentFoucault)/sum(colSums(nrcsentFoucault[,1:8])))[1:8]
+senti <- names(percF)
+Fsent <- data.frame(sentiment=senti,percentage=percF)
+ggplot(data=Fsent, aes(x=sentiment,y=percentage,fill=percentage))+
+  geom_bar(stat="identity")+
+  scale_fill_gradient(low = "light blue", high = "dark blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
+        plot.title = element_text(hjust = 0.5))+
+  labs(title = "sentiment label percentage of Foucault")
+```
+
+The sentence label of Foucault is also distributed more evenly.
+
+Then we use wordcloud to have a better insight of the sentiment of their work. 
+
+```{r warning=FALSE, include=FALSE}
+HsentenceCorpus <- Corpus(VectorSource(data[data$author=="Husserl","sentence_lowered"]))
+HsentenceCorpus<-tm_map(HsentenceCorpus, removeWords, stopwords("english"))
+HsentenceCorpus<-tm_map(HsentenceCorpus, removeWords, character(0))
+HsentenceCorpus<-tm_map(HsentenceCorpus, removePunctuation)
+HsentenceCorpus<-tm_map(HsentenceCorpus, stripWhitespace)
+
+Htdm <- TermDocumentMatrix(HsentenceCorpus)
+Htdm = removeSparseTerms(Htdm, 0.99)
+Htdm.tidy = tidytext::tidy(Htdm)
+Htdm.overall=summarise(group_by(Htdm.tidy, term), sum(count))
+```
+
+```{r, fig.height=4, fig.width=4, echo=FALSE}
+wordcloud(Htdm.overall$term, Htdm.overall$`sum(count)`,
+          scale=c(2.5,0.5),
+          max.words=100,
+          min.freq=10,
+          random.order=FALSE,
+          rot.per=0.3,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Blues"))
+```
+
+In the centre we can see words like *world*, *can*, *self*, *one* etc. These words gives one a feeling of trust and anticipation, which partly explains why Husserl's work is relatively positive than others.
+
+```{r warning=FALSE, include=FALSE}
+DsentenceCorpus <- Corpus(VectorSource(data[data$author=="Davis","sentence_lowered"]))
+DsentenceCorpus<-tm_map(DsentenceCorpus, removeWords, stopwords("english"))
+DsentenceCorpus<-tm_map(DsentenceCorpus, removeWords, character(0))
+DsentenceCorpus<-tm_map(DsentenceCorpus, removePunctuation)
+DsentenceCorpus<-tm_map(DsentenceCorpus, stripWhitespace)
+
+Dtdm <- TermDocumentMatrix(DsentenceCorpus)
+Dtdm = removeSparseTerms(Dtdm, 0.99)
+dtdm.tidy = tidytext::tidy(Dtdm)
+Dtdm.overall=summarise(group_by(dtdm.tidy, term), sum(count))
+```
+
+```{r, fig.height=4, fig.width=4, echo=FALSE}
+wordcloud(Dtdm.overall$term, Dtdm.overall$`sum(count)`,
+          scale=c(2.5,0.5),
+          max.words=100,
+          min.freq=1,
+          random.order=FALSE,
+          rot.per=0.3,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Blues"))
+```
+
+In Davis' work, we can see words like *women*, *blace*, *white*, *slavery* etc. Maybe his work talk a lot about slavery, which makes his attitude somewhat negative.
+
+```{r warning=FALSE, include=FALSE}
+FsentenceCorpus <- Corpus(VectorSource(data[data$author=="Foucault","sentence_lowered"]))
+FsentenceCorpus<-tm_map(FsentenceCorpus, removeWords, stopwords("english"))
+FsentenceCorpus<-tm_map(FsentenceCorpus, removeWords, character(0))
+FsentenceCorpus<-tm_map(FsentenceCorpus, removePunctuation)
+FsentenceCorpus<-tm_map(FsentenceCorpus, stripWhitespace)
+
+Ftdm <- TermDocumentMatrix(FsentenceCorpus)
+Ftdm = removeSparseTerms(Ftdm, 0.99)
+ftdm.tidy = tidytext::tidy(Ftdm)
+Ftdm.overall=summarise(group_by(ftdm.tidy, term), sum(count))
+```
+
+```{r, fig.height=4, fig.width=4, echo=FALSE}
+wordcloud(Ftdm.overall$term, Ftdm.overall$`sum(count)`,
+          scale=c(2.5,0.5),
+          max.words=100,
+          min.freq=1,
+          random.order=FALSE,
+          rot.per=0.3,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Blues"))
+```
+
+In Foucault's work, we can see words like *madness*, *one*, *language*, *century* etc. Considering he is one of continental school, it's not hard for us to figure out why his work is more neutral and rational. 
+
+# Step 3: Regression analysis of emotional change of certain schools over time
+
+Next we try to find out how these schools' sentiment develop. As we say at the beginning, philosophy should be ration and objective, which means that as schools develop, their sentiment should be more neutral. Let's take a look at how some relatively positive schools' sentiment develop.
+
+From the histogram, we take some relatively positive schools, namely German Idealism, phenomenology and rationalism as examples to analyse. 
+
+```{r include=FALSE}
+data$publication <- rawdata$original_publication_date
+GI <- data[data$school=="german_idealism",]
+Phe <- data[data$school=="phenomenology",]
+Rat <- data[data$school=="rationalism",]
+```
+
+```{r include=FALSE}
+GIdf <- data.frame(date=unique(GI$publication))
+Phedf <- data.frame(date=unique(Phe$publication))
+Ratdf <- data.frame(date=unique(Rat$publication))
+GIscore <- c()
+Phescore <- c()
+Ratscore <- c()
+
+for(i in 1:length(unique(GI$publication))){
+  GIscore[i] <- mean(GI[GI$publication==unique(GI$publication)[i],"sentscore"])
+}
+GIdf$score <- GIscore
+
+for(i in 1:length(unique(Phe$publication))){
+  Phescore[i] <- mean(Phe[Phe$publication==unique(Phe$publication)[i],"sentscore"])
+}
+Phedf$score <- Phescore
+
+for(i in 1:length(unique(Rat$publication))){
+  Ratscore[i] <- mean(Rat[Rat$publication==unique(Rat$publication)[i],"sentscore"])
+}
+Ratdf$score <- Ratscore
+```
+
+```{r echo=FALSE}
+ggplot(data = GIdf, aes(x=date, y=score))+
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "sentiment development of German Idealism")
+```
+
+```{r echo=FALSE}
+ggplot(data = Phedf, aes(x=date, y=score))+
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "sentiment development of Phenomenology")
+
+```
+
+```{r echo=FALSE}
+ggplot(data = Ratdf, aes(x=date, y=score))+
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "sentiment development of Rationalism")
+```
+
+As we can see from the regression lines, all the relatively positive schools become more neutral as they develop, which makes the statement at the beginning more convincing.
+
+
+# Step 4: Conclusion
+
+As we can see from the analysis above, philosophy works do have emotions, and different schools and authors have different emotion in their work. As schools develop, they all become more objective and rational, meaning they become more like a scientific discipline.
+
+
+

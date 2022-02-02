@@ -9,10 +9,11 @@ This is the first and only *individual* (as opposed to *team*) project this seme
 
 Term: Spring 2022
 
-+ Projec title: Lorem ipsum dolor sit amet
-+ This project is conducted by [your name]
++ Projec title: Do Philosophy works have emotion and how are they developing
++ This project is conducted by [Chang Lu]
 
-+ Project summary: [a short summary] Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
++ Project summary: [a short summary] This project seeks to find out whether the sentiment in different schools and philosophers are neutral or not, and whether the sentiment of a specific school becomes neutral over time. The conclusion is philosophy works do have emotions, and different schools and authors have different emotion in their work. As schools develop, they all become more objective and rational, meaning they become more like a scientific discipline.
+
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
 
